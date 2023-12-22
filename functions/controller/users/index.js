@@ -222,13 +222,19 @@ class UserController{
             const oldImageID = resData.profileImg;
             const oldImageUrlRef = firestorage.ref(store, `users/${req.params.id}/${oldImageID}`);
             const newImageID = profileImg ? uuidRandom() : oldImageID;
-
-            // 이미지 삭제 및 업로드 병렬 처리
-            await Promise.all([
-                oldImageID ? firestorage.deleteObject(oldImageUrlRef) : Promise.resolve(),
-                profileImg ? firestorage.uploadString(firestorage.ref(store, `users/${req.params.id}/${newImageID}`), profileImg, 'data_url', { contentType: 'image/jpg' }) : Promise.resolve()
-            ]);
-
+        
+            if (profileImg) {
+                // 오래된 이미지 삭제
+                await firestorage.deleteObject(oldImageUrlRef);
+                // 새로운 이미지 업로드
+                await firestorage.uploadString(
+                    firestorage.ref(store, `users/${req.params.id}/${newImageID}`),
+                    profileImg,
+                    'data_url',
+                    { contentType: 'image/jpg' }
+                );
+            }
+        
             await userRef.update({
                 profileImg: newImageID,
                 userName: userName || resData.userName,
