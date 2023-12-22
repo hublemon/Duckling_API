@@ -72,22 +72,41 @@ class UserController{
         try {
             const userRef = db.collection("users").doc(req.params.id);
             const userSnapshot = await userRef.get();
+
+            let imageUrl;
+            let userData={};
     
             if (!userSnapshot.exists) {
-                throw { status: 404, message: "존재하지 않는 유저입니다." };
+                try {
+                    // Firebase Storage 참조 생성
+                    const listRef = firestorage.ref(store, `users/${req.params.id}`);
+            
+                    const listResult = await firestorage.listAll(listRef);
+                    const items = listResult.items;
+            
+                    if (items.length > 0) {
+                        // 여러 이미지 중 첫 번째 이미지의 URL을 사용합니다.
+                        imageUrl = await firestorage.getDownloadURL(items[0]);
+                    } else {
+                        throw { status: 404, message: "존재하지 않는 프로필 이미지입니다." };
+                    }
+                } catch (error) {
+                    console.error("이미지 URL을 가져오는 중 에러 발생:", error);
+                    throw { status: 404, message: "존재하지 않는 유저입니다." };
+                }
+            } else{
+                userData = userSnapshot.data();
+        
+                // 프로필 이미지 URL 획득
+                const profileID = userData.profileImg;
+                try {
+                    const urlRef = firestorage.ref(store, `users/${userData.uid}/${profileID}`);
+                    imageUrl = await firestorage.getDownloadURL(urlRef);
+                } catch (urlError) {
+                    console.error("Error fetching image URL:", urlError);
+                }
             }
-    
-            const userData = userSnapshot.data();
-            let imageUrl;
-    
-            // 프로필 이미지 URL 획득
-            const profileID = userData.profileImg;
-            try {
-                const urlRef = firestorage.ref(store, `users/${userData.uid}/${profileID}`);
-                imageUrl = await firestorage.getDownloadURL(urlRef);
-            } catch (urlError) {
-                console.error("Error fetching image URL:", urlError);
-            }
+
     
             // 응답 데이터에 이미지 URL 추가
             const response = {
