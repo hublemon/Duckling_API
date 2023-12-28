@@ -79,16 +79,9 @@ class UserController{
             if (!userSnapshot.exists) {
                 try {
                     // Firebase Storage 참조 생성
-                    const listRef = firestorage.ref(store, `users/${req.params.id}`);
-            
-                    const listResult = await firestorage.listAll(listRef);
-                    const items = listResult.items;
-            
-                    if (items.length > 0) {
-                        // 여러 이미지 중 첫 번째 이미지의 URL을 사용합니다.
-                        imageUrl = await firestorage.getDownloadURL(items[0]);
-                    } else {
-                        throw { status: 404, message: "존재하지 않는 프로필 이미지입니다." };
+                    const imgRef = firestorage.ref(store, `users/${req.params.id}`);
+                    if(imgRef){
+                        imageUrl=await this.getBasicImageURL();
                     }
                 } catch (error) {
                     console.error("이미지 URL을 가져오는 중 에러 발생:", error);
@@ -250,19 +243,70 @@ class UserController{
     }
     
 
-    async deleteUser(req,res,next){
-        try{
-            const userRef=db.collection("users").doc(req.params.id);
-            const userSnapshot= await userRef.get();
-            if(!userSnapshot.exists){
-                throw {status: 404, message: "존재하지 않는 유저입니다."};
+    async deleteUser(req, res, next) {
+        try {
+            const userId = req.params.id;
+            const userRef = db.collection("users").doc(userId);
+            const userSnapshot = await userRef.get();
+    
+            if (!userSnapshot.exists) {
+                throw { status: 404, message: "존재하지 않는 유저입니다." };
             }
-            await db.collection("users").doc(req.params.id).delete();
-            res.status(204).json({ message:"유저 정보가 삭제되었습니다." });
-        } catch(err){
+    
+            // 이미지 URL 가져오기
+            // const basicImgURL = await this.getBasicImageURL();
+            // console.log(basicImgURL);
+    
+            // 이미지 삭제
+            await this.deleteImages(`users/${userId}`);
+    
+    
+            // 유저 삭제
+            await userRef.delete();
+    
+            res.status(204).json({ message: "유저 정보가 삭제되었습니다." });
+        } catch (err) {
+            console.error("에러 발생:", err);
             next(err);
         }
     }
+    
+    async getBasicImageURL() {
+        try {
+            const listRef = firestorage.ref(store, `users/Basic`);
+            const listResult = await firestorage.listAll(listRef);
+            const items = listResult.items;
+    
+            if (items.length > 0) {
+                const randomIndex = Math.floor(Math.random() * (items.length-1));
+                return await firestorage.getDownloadURL(items[randomIndex]);
+                //https://firebasestorage... 이 꼴임
+            } else {
+                throw { status: 404, message: "존재하지 않는 프로필 이미지입니다." };
+            }
+        } catch (error) {
+            console.error("이미지 URL을 가져오는 중 에러 발생:", error);
+        }
+    }
+    
+    async deleteImages(path) {
+        try {
+            const listRef = firestorage.ref(store, path);
+            const listResult = await firestorage.listAll(listRef);
+            const items = listResult.items;
+    
+            if (items.length > 0) {
+                await Promise.all(items.map(async (item) => {
+                    await firestorage.deleteObject(item);
+                }));
+            } else {
+                throw { status: 404, message: "존재하지 않는 프로필 이미지입니다." };
+            }
+        } catch (error) {
+            console.error("이미지 삭제 중 에러 발생:", error);
+        }
+    }
+    
 }
 
 const userController=new UserController();
