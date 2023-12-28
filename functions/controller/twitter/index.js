@@ -3,8 +3,12 @@ const router = express.Router();
 
 const db = require("../app.js");
 
-const request = require('request');
-const FormData = require('form-data');
+const fs = require('fs');
+const path = require('path');
+
+const { TwitterApi } = require("twitter-api-v2");
+
+require('dotenv').config();
 
 class TwitterController {
 
@@ -18,16 +22,6 @@ class TwitterController {
 
   init() {
     this.router.post("/:id", this.putTwitter.bind(this));
-  }
-
-  requestCallback(err, res, body) {
-    if (err) {
-      console.error(err);
-      throw err;
-    } else {
-      console.log("Tweet and Image uploaded successfully!");
-      console.log(body); // 트위터 API 응답 출력
-    }
   }
 
   async putTwitter(req, res, next) {
@@ -47,36 +41,27 @@ class TwitterController {
 
       const userResponse = userSnapShot.data();
 
-      const form = new FormData();
-      form.append('media[]', postImg_url);
-
-      // 변경: requestCallback을 클래스 메서드로 전달합니다.
-      form.getLength((err, length) => {
-        if (err) {
-          console.error(err); // 에러 메시지 출력
-          next(err); // 에러를 다음 미들웨어로 전달
-        } else {
-          const oauth = {
-            oauth_consumer_key: process.env.TWITTER_CONSUMER_KEY,
-            oauth_consumer_secret: process.env.TWITTER_CONSUMER_SECRET,
-            oauth_token: userResponse.access_token_key,
-            oauth_token_secret: userResponse.access_token_secret
-          };
-
-          // 변경: request.post 내에서 this.requestCallback을 전달합니다.
-          let r = request.post({
-            url: "https://api.twitter.com/1.1/statuses/update_with_media.json",
-            oauth: oauth,
-            host: "api.twitter.com",
-            protocol: "https:"
-          }, this.requestCallback);
-
-          r._form = form;
-          r.setHeader('content-length', length);
-        }
+      const client = new TwitterApi({
+        appKey: 'U0UxsfyjOlgOQmaKK4XCua7HV',
+        appSecret: 'ZhskskETDbWTAmV0Cc9BdRv2wgchENGmpo4zrjfGwMZJyNKbih',
+        accessToken: userResponse.access_token,
+        accessSecret: userResponse.access_token_secret,
+        bearerToken:'AAAAAAAAAAAAAAAAAAAAAEzBowEAAAAAyi4abGEOQYYwtjoleB1Z%2FwQNiQ8%3DWGoPLOc1C5oaPMenhLzQVeWZ8u1tVwJgRztaUy0hNZIxsxfu3y',
       });
 
-      res.status(201).json({ message: "Tweet and Image upload in progress..." });
+      const rwClient = client.readWrite;
+
+      try {
+        const mediaId = await client.v1.uploadMedia("./controller/twitter/image/icon_blue.png");
+        await rwClient.v2.tweet({
+              media: { media_ids: [mediaId] },
+        });
+        console.log("success");
+      } catch (e) {
+        console.error(e);
+      }
+
+      res.status(201).json({ message: "Your image tweet is posted successfully" });
     } catch (err) {
       next(err);
     }
