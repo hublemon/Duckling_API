@@ -104,10 +104,10 @@ app.use((err, req, res, next) => {
 });
 
 
-// const PORT = 8080; //process.env.PORT
-// app.listen(PORT, () => {
-//   console.log(`Server is running on ${PORT}`);
-// }); 
+const PORT = 8080; //process.env.PORT
+app.listen(PORT, () => {
+  console.log(`Server is running on ${PORT}`);
+}); 
 
-exports.api = functions.https.onRequest(app);
+// exports.api = functions.https.onRequest(app);
 

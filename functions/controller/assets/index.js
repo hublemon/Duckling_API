@@ -28,7 +28,8 @@ class AssetController{
         this.router.post("/:kind",this.putAssets.bind(this)); 
         this.router.get("/ar/:assetID",this.getARAsset.bind(this));
         // this.router.get("/ar",this.getARAssets.bind(this));
-        this.router.post("/ar",this.putARAssets.bind(this)); 
+        this.router.post("/kind/skins",this.putSkinsAssets.bind(this)); 
+        // this.router.post("/ar",this.putARAssets.bind(this)); 
     }
 
     // async getARAssets(req, res, next) {
@@ -137,6 +138,46 @@ class AssetController{
                 };
     
                 const kindDocRef = db.collection(kind).doc(assetID);
+                const assetDocRef = db.collection("assets").doc(assetID);
+    
+                await Promise.all([
+                    kindDocRef.set(assetKindJson, { merge: true }),
+                    assetDocRef.set(assetJson, { merge: true }),
+                ]);
+    
+                insertedAssets.push(assetJson);
+            }
+    
+            res.status(201).json(insertedAssets);
+        } catch (err) {
+            res.status(err.status || 500).json({ error: err.message });
+        }
+    }
+    
+    async putSkinsAssets(req, res, next) {  //스스로 구현해냈다!
+        try {
+            const insertedAssets = [];
+    
+            const kindRef = firestorage.ref(store, `skins`);
+            const kindResult = await firestorage.listAll(kindRef);
+            // console.log(kindRef);
+            for (const item of kindResult.items) {
+                const assetPath = item.fullPath;
+                // console.log(assetPath);
+                const assetImg=await firestorage.getDownloadURL(item);
+                // console.log(assetImg);
+                const assetID = uuidRandom();
+                const assetKindJson = {
+                    assetID,
+                    assetPath,
+                    assetImg
+                };
+    
+                const assetJson = {
+                    assetRef: db.collection("skins").doc(assetID),
+                };
+    
+                const kindDocRef = db.collection("skins").doc(assetID);
                 const assetDocRef = db.collection("assets").doc(assetID);
     
                 await Promise.all([
