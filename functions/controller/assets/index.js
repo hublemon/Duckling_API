@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const db=require("../app.js");
 
+const firestorage=require("../../config.js");
+const store= firestorage.getStorage();
 
 const uuidRandom = require('uuid-random');
 
@@ -99,40 +101,58 @@ class AssetController{
             next(err);
         }
     }
-    
-    async putAssets(req, res, next) {
+
+    async putAssets(req, res, next) {  //스스로 구현해냈다!
         try {
-            const assetslist = req.body;
+            const kind = req.params.kind;
             const insertedAssets = [];
     
-            for (let i = 0; i < assetslist.length; i++) {
-                if (!assetslist[i].assetImg || !assetslist[i].assetGltf) {
-                    console.log("오류 인덱스", i);
-                    throw { status: 400, message: "에셋 정보가 부족합니다." };
+            const kindRef = firestorage.ref(store, `${kind}`);
+            const kindResult = await firestorage.listAll(kindRef);
+    
+            for (const item of kindResult.prefixes) {
+                const listResult = await firestorage.listAll(item);
+                const items = listResult.items;
+    
+                const assetPath = items[0].fullPath;
+                let [assetGltf, assetImg] = await Promise.all([
+                    firestorage.getDownloadURL(items[0]),
+                    firestorage.getDownloadURL(items[1]),
+                ]);
+    
+                if (!(assetPath.endsWith('ltf') || assetPath.endsWith('glb'))) {
+                    [assetGltf, assetImg] = [assetImg, assetGltf];
                 }
+    
                 const assetID = uuidRandom();
                 const assetKindJson = {
-                    assetID: assetID,
-                    assetImg: assetslist[i].assetImg,
-                    assetGltf: assetslist[i].assetGltf,
-                    // 필드를 reference로 만들어 db.collection(req.params.kind).doc(assetID)를 가리키도록 설치
+                    assetID,
+                    assetPath,
+                    assetImg,
+                    assetGltf,
                 };
-                const assetJson={
-                    assetRef: db.collection(req.params.kind).doc(assetID)
-                }
-
-                const kindRef = db.collection(req.params.kind).doc(assetID);
-                await kindRef.set(assetKindJson, { merge: true });
-                const assetRef=db.collection("assets").doc(assetID);
-                await assetRef.set(assetJson, { merge: true });
-                
+    
+                const assetJson = {
+                    assetRef: db.collection(kind).doc(assetID),
+                };
+    
+                const kindDocRef = db.collection(kind).doc(assetID);
+                const assetDocRef = db.collection("assets").doc(assetID);
+    
+                await Promise.all([
+                    kindDocRef.set(assetKindJson, { merge: true }),
+                    assetDocRef.set(assetJson, { merge: true }),
+                ]);
+    
                 insertedAssets.push(assetJson);
             }
+    
             res.status(201).json(insertedAssets);
         } catch (err) {
             res.status(err.status || 500).json({ error: err.message });
         }
     }
+    
     
 
     

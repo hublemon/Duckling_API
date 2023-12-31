@@ -208,42 +208,6 @@ class PostController{
     
 
 
-    // async getUserPost(req, res, next) {
-    //     try {
-    //         const postsRef = db.collection("posts");
-    //         const response = await postsRef.get();
-    //         let userPost;
-
-    //         for (const doc of response.docs) {
-    //             if (doc.data().writerID === req.params.writerID && doc.data().postID === req.params.postID) {
-    //                 userPost = doc.data();
-    //                 const images = userPost.postImg;
-    //                 const imageUrls = [];
-
-    //                 for (let i = 0; i < images.length; i++) {
-    //                     try {
-    //                         const urlRef = firestorage.ref(store, `posts/${userPost.writerID}/${userPost.postID}/${images[i]}`);
-    //                         const url = await firestorage.getDownloadURL(urlRef);
-    //                         imageUrls.push(url);
-    //                     } catch (urlError) {
-    //                         console.error("Error fetching image URL:", urlError);
-    //                     }
-    //                 }
-
-    //                 userPost.postImg = imageUrls;
-    //                 break; 
-    //             }
-    //         }
-
-    //         if (!userPost) {
-    //             throw  {status: 404, message: "존재하지 않는 게시글입니다."};
-    //         }
-    //         res.status(200).json(userPost);
-    //     } catch (err) {
-    //         next(err);
-    //     }
-    // }
-
     formatDateToYYYYMMDD(date) {
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');

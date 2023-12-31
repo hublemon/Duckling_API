@@ -125,31 +125,32 @@ class UserController{
             }
     
             const userAvatar = userSnapshot.get("userAvatar");
-            const categories = {
-                body: ["top", "bottom", "shoes", "accessory"],
-                face: ["eyes", "mouth"],
-            };
+            console.log(userAvatar);
+            // const categories = {
+            //     body: ["top", "bottom", "shoes", "accessory"],
+            //     face: ["eyes", "mouth"],
+            // };
     
-            const assets = {};
+            // const assets = {};
     
-            for (const [category, categoryItems] of Object.entries(categories)) {
-                const categoryRef = db.collection("assets").doc(category);
+            // for (const [category, categoryItems] of Object.entries(categories)) {
+            //     const categoryRef = db.collection("assets").doc(category);
     
-                for (const item of categoryItems) {   //if밖으로 못 나오면 if 안에서 다 처리해라
-                    if (userAvatar.hasOwnProperty(item)) {
-                        const categoryKindRef = categoryRef.collection(item).doc(userAvatar[item]);
-                        const categorySnapshot = await categoryKindRef.get();
+            //     for (const item of categoryItems) {   //if밖으로 못 나오면 if 안에서 다 처리해라
+            //         if (userAvatar.hasOwnProperty(item)) {
+            //             const categoryKindRef = categoryRef.collection(item).doc(userAvatar[item]);
+            //             const categorySnapshot = await categoryKindRef.get();
     
-                        assets[item] = {
-                            assetID: categorySnapshot.get("assetID"),
-                            assetGltf: categorySnapshot.get("assetGltf"),
-                            assetImg: categorySnapshot.get("assetImg"),
-                        };
-                    }
-                }
-            }
+            //             assets[item] = {
+            //                 assetID: categorySnapshot.get("assetID"),
+            //                 assetGltf: categorySnapshot.get("assetGltf"),
+            //                 assetImg: categorySnapshot.get("assetImg"),
+            //             };
+            //         }
+            //     }
+            // }
     
-            res.status(200).json(assets);
+            res.status(200).json(userAvatar);
         } catch (err) {
             next(err);
         }
@@ -276,6 +277,7 @@ class UserController{
             const listRef = firestorage.ref(store, `users/Basic`);
             const listResult = await firestorage.listAll(listRef);
             const items = listResult.items;
+            // console.log(items[0].fullPath);
     
             if (items.length > 0) {
                 const randomIndex = Math.floor(Math.random() * (items.length-1));
