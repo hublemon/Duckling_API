@@ -30,20 +30,9 @@ class AssetController{
         // this.router.get("/ar",this.getARAssets.bind(this));
         this.router.post("/kind/skins",this.putSkinsAssets.bind(this)); 
         // this.router.post("/ar",this.putARAssets.bind(this)); 
+        this.router.delete("/:kind",this.deleteKindAssets.bind(this)); 
     }
 
-    // async getARAssets(req, res, next) {
-    //     try {
-    //         const ARRef = await db.collection("ar");
-    //         const response = await ARRef.get();
-    
-    //         const resArr = response.docs.map((doc) => doc.data());
-    
-    //         res.status(200).json(resArr);
-    //     } catch (err) {
-    //         next(err);
-    //     }
-    // }
 
     async getARAsset(req, res, next) {
         try {
@@ -195,36 +184,31 @@ class AssetController{
     }
     
     
-
     
-    async putARAssets(req, res, next) {
+    async deleteKindAssets(req, res, next) {
         try {
-            const assetslist = req.body;
-            const insertedAssets = []; // 배열로 모든 asset을 저장할 변수 추가
-    
-            for (let i = 0; i < assetslist.length; i++) {
-                if (!assetslist[i].assetImg || !assetslist[i].assetGltf) {
-                    console.log("오류 인덱스", i);
-                    throw { status: 400, message: "에셋 정보가 부족합니다." };
-                }
-                const assetID = uuidRandom();
-                const assetJson = {
-                    assetID: assetID,
-                    assetImg: assetslist[i].assetImg,
-                    assetGltf: assetslist[i].assetGltf
-                };
-                const assetRef = db.collection("ar").doc(assetID);
-                await assetRef.set(assetJson, { merge: true });
-    
-                insertedAssets.push(assetJson);
+            const kindRef = db.collection(`${req.params.kind}`);
+            const kindSnapshot= await kindRef.get();
+
+            if (!kindSnapshot) {
+                throw { status: 404, message: "해당 에셋 종류는 존재하지 않습니다." };
             }
-            res.status(201).json(insertedAssets);
+            const resArr = kindSnapshot.docs.map((doc) => doc.data());
+            // console.log(resArr);
+            for (const asset of resArr){
+                const kindAssetRef=db.collection(`${req.params.kind}`).doc(asset["assetID"]);
+                await kindAssetRef.delete();
+
+                const assetRef = db.collection("assets").doc(asset["assetID"]);
+                await assetRef.delete();
+            }
+
+            res.status(204).json();
         } catch (err) {
             // 에러 응답을 보냅니다.
             res.status(err.status || 500).json({ error: err.message });
         }
     }
-    
 
 }
 
