@@ -202,21 +202,22 @@ class UserController{
             next(err);
         }
     }
-    
-    async updateUser(req,res,next){
-        try{
-            const {userName,profileImg ,userAvatar}=req.body;
-            const userRef=db.collection("users").doc(req.params.id);
-            const userSnapshot=await userRef.get();
-            if(!userSnapshot.exists){
-                throw {status: 404, message: "존재하지 않는 유저입니다."};
-            }
-            const resData = userSnapshot.data();
 
+    async updateUser(req, res, next) {
+        try {
+            const { userName, profileImg, userAvatar } = req.body;
+            const userRef = db.collection("users").doc(req.params.id);
+            const userSnapshot = await userRef.get();
+    
+            if (!userSnapshot.exists) {
+                throw { status: 404, message: "존재하지 않는 유저입니다." };
+            }
+    
+            const resData = userSnapshot.data();
             const oldImageID = resData.profileImg;
             const oldImageUrlRef = firestorage.ref(store, `users/${req.params.id}/${oldImageID}`);
             const newImageID = profileImg ? uuidRandom() : oldImageID;
-        
+    
             if (profileImg) {
                 // 오래된 이미지 삭제
                 await firestorage.deleteObject(oldImageUrlRef);
@@ -228,17 +229,30 @@ class UserController{
                     { contentType: 'image/jpg' }
                 );
             }
+
+            
+            Object.entries(resData.userAvatar).forEach(([key, value]) => {
+                const existingKey = Object.keys(userAvatar).find(
+                    (cleanedKey) => userAvatar[cleanedKey] === value
+                );
+    
+                if (existingKey) {
+                    delete userAvatar[existingKey];
+                }
+            });
+            // console.log(userAvatar);
+        
         
             await userRef.update({
                 profileImg: newImageID,
                 userName: userName || resData.userName,
-                userAvatar: userAvatar || resData.userAvatar
+                userAvatar: userAvatar,
             });
-
+    
             const modifiedUserSnapshot = await userRef.get();
             const modifiedUser = modifiedUserSnapshot.data();
-            res.status(204).json(modifiedUser); //원래는 204했는데 이러면 json 응답 안 뜸
-        } catch(err){
+            res.status(204).json(modifiedUser);
+        } catch (err) {
             next(err);
         }
     }
@@ -254,13 +268,8 @@ class UserController{
                 throw { status: 404, message: "존재하지 않는 유저입니다." };
             }
     
-            // 이미지 URL 가져오기
-            // const basicImgURL = await this.getBasicImageURL();
-            // console.log(basicImgURL);
-    
             // 이미지 삭제
             await this.deleteImages(`users/${userId}`);
-    
     
             // 유저 삭제
             await userRef.delete();
