@@ -170,7 +170,7 @@ class UserController{
             let userAvatar = {};
 
             if (userDoc.exists) {
-                userAvatar = userDoc.data().collection("userAvatar");
+                userAvatar = userDoc.data().userAvatar;
             }
             //추가된 부분//
             const metadata = {
@@ -230,24 +230,29 @@ class UserController{
                 );
             }
 
-            
-            Object.entries(resData.userAvatar).forEach(([key, value]) => {
-                const existingKey = Object.keys(userAvatar).find(
-                    (cleanedKey) => userAvatar[cleanedKey] === value
-                );
-    
-                if (existingKey) {
-                    delete userAvatar[existingKey];
-                }
-            });
-            // console.log(userAvatar);
-        
-        
             await userRef.update({
                 profileImg: newImageID,
                 userName: userName || resData.userName,
-                userAvatar: userAvatar,
+                userAvatar: userAvatar || resData.userAvatar
             });
+            
+            // Object.entries(resData.userAvatar).forEach(([key, value]) => {
+            //     const existingKey = Object.keys(userAvatar).find(
+            //         (cleanedKey) => userAvatar[cleanedKey] === value
+            //     );
+    
+            //     if (existingKey) {
+            //         delete userAvatar[existingKey];
+            //     }
+            // });
+            // // console.log(userAvatar);
+        
+        
+            // await userRef.update({
+            //     profileImg: newImageID,
+            //     userName: userName || resData.userName,
+            //     userAvatar: userAvatar,
+            // });
     
             const modifiedUserSnapshot = await userRef.get();
             const modifiedUser = modifiedUserSnapshot.data();
