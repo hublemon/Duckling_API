@@ -24,7 +24,7 @@ class CommentController{
     }
 
     init(){
-        this.router.get("/root/:rootID",this.getComments.bind(this));
+        this.router.get("/:rootID",this.getComments.bind(this));
         this.router.post("/",this.putComment.bind(this));
         this.router.delete("/:commentID",this.deleteComment.bind(this));
     }
