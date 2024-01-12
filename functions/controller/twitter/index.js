@@ -8,8 +8,11 @@ const path = require('path');
 
 const { TwitterApi } = require("twitter-api-v2");
 const dotenv = require('dotenv');
+const { type } = require("os");
 
 dotenv.config();
+
+
 
 class TwitterController {
 
@@ -23,11 +26,6 @@ class TwitterController {
 
   init() {
     this.router.post("/:id", this.putTwitter.bind(this));
-  }
-
-  async base64ToImage(base64Data, imagePath) {
-    const dataBuffer = Buffer.from(base64Data, 'base64');
-    fs.writeFileSync(imagePath, dataBuffer);
   }
 
   async putTwitter(req, res, next) {
@@ -53,24 +51,8 @@ class TwitterController {
 
       const userResponse = userSnapShot.data();
 
-      const imageFolder = path.join(__dirname, 'image');
-      if (!fs.existsSync(imageFolder)) {
-        fs.mkdirSync(imageFolder);
-      }
+      await this.uploadImageAndTweet(userResponse, postImg_url);
 
-      // Generate a unique filename for the image
-      const imageName = `image_${req.params.id}.png`;
-      const imagePath = path.join(imageFolder, imageName);
-
-      // Convert base64 to image and save to file
-      this.base64ToImage(postImg_url, imagePath);  //첫번째 파라미터 수정
-      console.log(imagePath);
-
-      const uploadPath=`./controller/twitter/image/image_${req.params.id}.png`;
-
-      await this.uploadImageAndTweet(userResponse, uploadPath);
-
-      this.deleteImageFile(imagePath);
 
       res.status(201).json({ message: "Your image tweet is posted successfully" });
     } catch (err) {
@@ -78,7 +60,7 @@ class TwitterController {
     }
   }
 
-  async uploadImageAndTweet(userResponse, imagePath) {
+  async uploadImageAndTweet(userResponse, postImg_url) {
     const client = new TwitterApi({
       appKey: 'U0UxsfyjOlgOQmaKK4XCua7HV',
       appSecret: 'ZhskskETDbWTAmV0Cc9BdRv2wgchENGmpo4zrjfGwMZJyNKbih',
@@ -88,9 +70,11 @@ class TwitterController {
     });
   
     const rwClient = client.readWrite;
+    const base64Data = postImg_url.replace(/^data:image\/jpeg;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
   
     try {
-      const mediaId = await client.v1.uploadMedia(imagePath);
+      const mediaId = await client.v1.uploadMedia(buffer, { mimeType: 'image/jpeg' }); 
       await rwClient.v2.tweet({
         media: { media_ids: [mediaId] },
       });
@@ -98,15 +82,6 @@ class TwitterController {
     } catch (e) {
       console.error(e);
       throw { status: 500, message: "이미지 업로드 및 트윗 게시 중에 오류가 발생했습니다." };
-    }
-  }
-
-  deleteImageFile(imagePath) {
-    try {
-      fs.unlinkSync(imagePath);
-      console.log(`Image file deleted: ${imagePath}`);
-    } catch (err) {
-      console.error(`Error deleting image file: ${err.message}`);
     }
   }
 
