@@ -53,15 +53,25 @@ class AssetController{
         try {
             const kind = req.query.kind;
             const kindRef = db.collection(kind);
-            const response = await kindRef.get();
     
-            const resArr = response.docs.map((doc) => doc.data());
+            const documents = await kindRef.listDocuments();
+            
+            if (documents.length <= 0) {
+                throw { status: 404, message: "존재하지 않는 에셋 종류입니다." };
+            }
+    
+            // Promise.all을 사용하여 병렬로 데이터를 가져오도록 최적화합니다.
+            const resArr = await Promise.all(documents.map(async (docRef) => {
+                const docSnapshot = await docRef.get();
+                return docSnapshot.data();
+            }));
     
             res.status(200).json(resArr);
         } catch (err) {
             next(err);
         }
     }
+    
     
     async getAsset(req, res, next) {
         try {

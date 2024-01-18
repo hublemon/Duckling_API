@@ -55,92 +55,34 @@ class PostController{
     }
 
     //비동기는 전설이다..
-    async getPostsByTime(req, res, next) {
+    async getPosts(req, res, next, sortKey) {
         try {
-
-            const limit = parseInt(req.query.limit) || 10; //http://localhost:8080/posts?limit=5&start=5
-            const start = parseInt(req.query.start) || 0; 
-
+            const limit = parseInt(req.query.limit) || 10;
+            const start = parseInt(req.query.start) || 0;
+    
             const postsRef = db.collection("posts");
             const response = await postsRef.get();
-            const resArr = [];
     
-            const downloadUrlPromises = [];
+            const resArr = response.docs.map(doc => doc.data());
     
-            for (const doc of response.docs) {
-                const post = doc.data();
-                const images = post.postImg;
+            resArr.sort((a, b) => b[sortKey] - a[sortKey] || (sortKey === 'time' ? b.likes - a.likes : b.time - a.time));
     
-                const imageUrlsPromise = images.map(async (image) => {
-                    const urlRef = firestorage.ref(store, `posts/${post.writerID}/${post.postID}/${image}`);
-                    return firestorage.getDownloadURL(urlRef);
-                });
-    
-                downloadUrlPromises.push(Promise.all(imageUrlsPromise).then((imageUrls) => {
-                    post.postImg = imageUrls;
-                    resArr.push(post);
-                }));
-            }
-    
-            await Promise.all(downloadUrlPromises);
-            resArr.sort((a, b) => {
-                if (b.time === a.time) {
-                    return b.likes - a.likes; 
-                }
-                return b.time - a.time;
-            });
             const paginatedPosts = resArr.slice(start, start + limit);
-    
     
             res.status(201).json(paginatedPosts);
         } catch (err) {
             next(err);
         }
+    }
+    
+    
+    async getPostsByTime(req, res, next) {
+        await this.getPosts(req, res, next, 'time');
     }
     
     async getPostsByLikes(req, res, next) {
-        try {
-
-            const limit = parseInt(req.query.limit) || 10; //http://localhost:8080/posts/?limit=5&start=5
-            const start = parseInt(req.query.start) || 0; 
-
-            const postsRef = db.collection("posts");
-            const response = await postsRef.get();
-            const resArr = [];
-    
-            const downloadUrlPromises = [];
-    
-            for (const doc of response.docs) {
-                const post = doc.data();
-                const images = post.postImg;
-    
-                const imageUrlsPromise = images.map(async (image) => {
-                    const urlRef = firestorage.ref(store, `posts/${post.writerID}/${post.postID}/${image}`);
-                    return firestorage.getDownloadURL(urlRef);
-                });
-    
-                downloadUrlPromises.push(Promise.all(imageUrlsPromise).then((imageUrls) => {
-                    post.postImg = imageUrls;
-                    resArr.push(post);
-                }));
-            }
-    
-            await Promise.all(downloadUrlPromises);
-    
-            resArr.sort((a, b) => {
-                if (b.likes === a.likes) {
-                    return b.time - a.time; 
-                }
-                return b.likes - a.likes;
-            });
-            const paginatedPosts = resArr.slice(start, start + limit);
-    
-            res.status(201).json(paginatedPosts);
-        } catch (err) {
-            next(err);
-        }
+        await this.getPosts(req, res, next, 'likes');
     }
-    
     
     
     async getPost(req,res,next){  //구현 완료
@@ -152,18 +94,6 @@ class PostController{
             }
             const response= postSnapShot;
             const post = response.data();
-
-            const images = post.postImg;     
-            const imageUrls = [];
-                
-            for (let i = 0; i < images.length; i++) {
-                const urlRef = firestorage.ref(store, `posts/${post.writerID}/${post.postID}/${images[i]}`);
-                const url = await firestorage.getDownloadURL(urlRef);
-                console.log(url);                
-                imageUrls.push(url); 
-            }
-                
-            post.postImg = imageUrls; 
             
             res.status(200).json(post);
         } catch(err){
@@ -175,30 +105,9 @@ class PostController{
     async getUserPosts(req, res, next) {
         try {
             const postsRef = db.collection("posts");
-            const response = await postsRef.get();
-            const resArr = [];
+            const response = await postsRef.orderBy('time', 'desc').get();
     
-            const userPostsPromises = [];
-    
-            for (const doc of response.docs) {
-                const post = doc.data();
-                if (post.writerID === req.params.writerID) {
-                    const images = post.postImg;
-                    const imageUrlsPromise = images.map(async (image) => {
-                        const urlRef = firestorage.ref(store, `posts/${post.writerID}/${post.postID}/${image}`);
-                        return firestorage.getDownloadURL(urlRef);
-                    });
-    
-                    userPostsPromises.push(Promise.all(imageUrlsPromise).then((imageUrls) => {
-                        post.postImg = imageUrls;
-                        resArr.push(post);
-                    }));
-                }
-            }
-    
-            await Promise.all(userPostsPromises);
-    
-            resArr.sort((a, b) => b.time - a.time);
+            const resArr = response.docs.map(doc => doc.data());
     
             res.status(200).json(resArr);
         } catch (err) {
@@ -220,33 +129,29 @@ class PostController{
     async putPost(req, res, next) {
         try {
             const { title, body, postImg, writerID, writerName } = req.body;
+    
             if (!title || !body || !writerID || !writerName) {
                 throw { status: 400, message: "게시글 정보가 부족합니다." };
             }
-            const postID = uuidRandom();
-            const imageKeys = Object.keys(postImg);
-            const imgIDArr = [];
-            const uploadPromises = [];
     
-            // 딜레이를 추가하기 위한 변수
+            const postID = uuidRandom();
+            const imgIDArr = [];
+            const imgURLArr = [];
             let delay = 0;
     
-            imageKeys.forEach((key) => {
-                const image = postImg[key];
+            const uploadPromises = Object.entries(postImg).map(async ([key, image]) => {
                 const imageID = uuidRandom();
                 imgIDArr.push(imageID);
+    
                 const imgRef = firestorage.ref(store, `posts/${writerID}/${postID}/${imageID}`);
                 
                 // setTimeout을 이용한 딜레이 추가
-                const uploadPromise = new Promise((resolve) => {
-                    setTimeout(async () => {
-                        await firestorage.uploadString(imgRef, image, 'data_url', { content: 'image/jpg' });
-                        resolve();
-                    }, delay);
-                });
+                await new Promise(resolve => setTimeout(resolve, delay));
+                await firestorage.uploadString(imgRef, image, 'data_url', { content: 'image/jpg' });
     
-                uploadPromises.push(uploadPromise);
-                
+                const url = await firestorage.getDownloadURL(imgRef);
+                imgURLArr.push(url);
+    
                 // 1초씩 딜레이 증가
                 delay += 1000;
             });
@@ -255,16 +160,16 @@ class PostController{
     
             const date = new Date();
             const postJson = {
-                postID: postID,
-                title: title,
-                body: body,
-                writerID: writerID,
-                writerName: writerName,
+                postID,
+                title,
+                body,
+                writerID,
+                writerName,
                 likes: [],
-                commentCount: Number(0),
-                postImg: imgIDArr,
+                commentCount: 0,
+                postImg: imgURLArr,
                 time: date.getTime(),
-                date: this.formatDateToYYYYMMDD(date)
+                date: this.formatDateToYYYYMMDD(date),
             };
     
             await db.collection("posts").doc(postID).set(postJson);
@@ -273,6 +178,7 @@ class PostController{
             next(err);
         }
     }
+    
 
     async updateLikes(req, res, next) {
     try {
@@ -308,19 +214,24 @@ class PostController{
         }
     }
 
-    async deletePost(req,res,next){
-        try{
-            const postRef=db.collection("posts").doc(req.params.postID);
-            const postSnapShot= await postRef.get();
-            if(!postSnapShot.exists){
-                throw {status: 404, message: "존재하지 않는 게시글입니다."};
+    async deletePost(req, res, next) {
+        try {
+            const postRef = db.collection("posts").doc(req.params.postID);
+            const postSnapshot = await postRef.get();
+    
+            if (!postSnapshot.exists) {
+                throw { status: 404, message: "존재하지 않는 게시글입니다." };
             }
-            const posts=await db.collection("posts").doc(req.params.postID).delete();
-            res.status(204).json({message:"게시글이 삭제되었습니다."});
-        } catch(err){
+    
+            // delete 메서드를 직접 호출하여 문서를 삭제합니다.
+            await postRef.delete();
+    
+            res.status(201).json({ message: "게시글이 삭제되었습니다." });  // 원래는 204를 보내야하지만..
+        } catch (err) {
             next(err);
         }
     }
+    
 }
 
 const postController=new PostController();
