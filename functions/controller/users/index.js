@@ -46,27 +46,15 @@ class UserController{
             const userRef = db.collection("users");
             const response = await userRef.get();
     
-            const resArr = await Promise.all(response.docs.map(async (doc) => {
-                const user = doc.data();
-                const imageID = user.profileImg;
-                
-                try {
-                    const urlRef = firestorage.ref(store, `users/${user.uid}/${imageID}`);
-                    const imageUrl = await firestorage.getDownloadURL(urlRef);
-                    user.profileImg = imageUrl;
-                } catch (urlError) {
-                    console.error("Error fetching image URL:", urlError);
-                }
+            const promises = response.docs.map(doc => doc.data());
+            const users = await Promise.all(promises);
     
-                return user;
-            }));
-    
-            res.status(201).json(resArr);
+            res.status(201).json(users);
         } catch (err) {
             next(err);
         }
     }
-
+    
    
     async getUser(req, res, next) {
         try {
@@ -89,15 +77,15 @@ class UserController{
                 }
             } else{
                 userData = userSnapshot.data();
-        
+                imageUrl= userData.profileImg;
                 // 프로필 이미지 URL 획득
-                const profileID = userData.profileImg;
-                try {
-                    const urlRef = firestorage.ref(store, `users/${userData.uid}/${profileID}`);
-                    imageUrl = await firestorage.getDownloadURL(urlRef);
-                } catch (urlError) {
-                    console.error("Error fetching image URL:", urlError);
-                }
+                // const profileID = userData.profileImg;
+                // try {
+                //     const urlRef = firestorage.ref(store, `users/${userData.uid}/${profileID}`);
+                //     imageUrl = await firestorage.getDownloadURL(urlRef);
+                // } catch (urlError) {
+                //     console.error("Error fetching image URL:", urlError);
+                // }
             }
 
     
@@ -126,29 +114,6 @@ class UserController{
     
             const userAvatar = userSnapshot.get("userAvatar");
             console.log(userAvatar);
-            // const categories = {
-            //     body: ["top", "bottom", "shoes", "accessory"],
-            //     face: ["eyes", "mouth"],
-            // };
-    
-            // const assets = {};
-    
-            // for (const [category, categoryItems] of Object.entries(categories)) {
-            //     const categoryRef = db.collection("assets").doc(category);
-    
-            //     for (const item of categoryItems) {   //if밖으로 못 나오면 if 안에서 다 처리해라
-            //         if (userAvatar.hasOwnProperty(item)) {
-            //             const categoryKindRef = categoryRef.collection(item).doc(userAvatar[item]);
-            //             const categorySnapshot = await categoryKindRef.get();
-    
-            //             assets[item] = {
-            //                 assetID: categorySnapshot.get("assetID"),
-            //                 assetGltf: categorySnapshot.get("assetGltf"),
-            //                 assetImg: categorySnapshot.get("assetImg"),
-            //             };
-            //         }
-            //     }
-            // }
     
             res.status(200).json(userAvatar);
         } catch (err) {
@@ -158,9 +123,9 @@ class UserController{
 
     async putUser(req, res, next) {
         try {
-            const { uid, profileImg, userName,access_token,access_token_secret } = req.body;
+            const { uid, userName,access_token,access_token_secret } = req.body;
     
-            if (!uid || !profileImg || !userName || !access_token || !access_token_secret ) {
+            if (!uid || !userName || !access_token || !access_token_secret ) {
                 throw { status: 400, message: "유저 정보가 부족합니다." }; 
             }
 
@@ -168,28 +133,24 @@ class UserController{
             const userDoc = await userDocRef.get();
 
             let userAvatar = {};
+            let profileImg;
+            let profileID;
 
+            [profileID, profileImg] = await Promise.all([
+            uuidRandom(),
+            this.getBasicImageURL() // 프로필 이미지 URL을 가져오는 비동기 함수
+            ]);
             if (userDoc.exists) {
                 userAvatar = userDoc.data().userAvatar;
+                profileImg=userDoc.data().profileImg;
             }
-            //추가된 부분//
-            const metadata = {
-                contentType: 'image/jpg',
-            };
 
-            const profileID=uuidRandom();
             const imgRef = firestorage.ref(store, `users/${uid}/${profileID}`);
             
-            const base64Img = profileImg.replace(/-/g, '+').replace(/_/g, '/');
-            const base64DecodedImg = Buffer.from(base64Img, 'base64').toString('base64');
-
-            // Firebase Storage에 업로드
-            await firestorage.uploadString(imgRef, base64DecodedImg, 'base64', metadata);
-            // const imageUrl = await firestorage.getDownloadURL(imgRef);
             //여기까지//
             const userJson = {
                 uid:uid,
-                profileImg: profileID,
+                profileImg: profileImg,
                 userName: userName,
                 userAvatar: userAvatar,
                 access_token: access_token,
@@ -215,12 +176,12 @@ class UserController{
     
             const resData = userSnapshot.data();
             const oldImageID = resData.profileImg;
-            const oldImageUrlRef = firestorage.ref(store, `users/${req.params.id}/${oldImageID}`);
             const newImageID = profileImg ? uuidRandom() : oldImageID;
+            let imageURL;
     
             if (profileImg) {
-                // 오래된 이미지 삭제
-                await firestorage.deleteObject(oldImageUrlRef);
+                // 이미지 삭제
+                await this.deleteImages(`users/${req.params.id}}`);
                 // 새로운 이미지 업로드
                 await firestorage.uploadString(
                     firestorage.ref(store, `users/${req.params.id}/${newImageID}`),
@@ -228,32 +189,16 @@ class UserController{
                     'data_url',
                     { contentType: 'image/jpg' }
                 );
+                const imgRef=await firestorage.ref(store, `users/${req.params.id}/${newImageID}`);
+                imageURL = await firestorage.getDownloadURL(imgRef);
             }
 
             await userRef.update({
-                profileImg: newImageID,
+                profileImg: imageURL||resData.profileImg,
                 userName: userName || resData.userName,
                 userAvatar: userAvatar || resData.userAvatar
             });
             
-            // Object.entries(resData.userAvatar).forEach(([key, value]) => {
-            //     const existingKey = Object.keys(userAvatar).find(
-            //         (cleanedKey) => userAvatar[cleanedKey] === value
-            //     );
-    
-            //     if (existingKey) {
-            //         delete userAvatar[existingKey];
-            //     }
-            // });
-            // // console.log(userAvatar);
-        
-        
-            // await userRef.update({
-            //     profileImg: newImageID,
-            //     userName: userName || resData.userName,
-            //     userAvatar: userAvatar,
-            // });
-    
             const modifiedUserSnapshot = await userRef.get();
             const modifiedUser = modifiedUserSnapshot.data();
             res.status(204).json(modifiedUser);
@@ -304,7 +249,7 @@ class UserController{
             console.error("이미지 URL을 가져오는 중 에러 발생:", error);
         }
     }
-    
+
     async deleteImages(path) {
         try {
             const listRef = firestorage.ref(store, path);
