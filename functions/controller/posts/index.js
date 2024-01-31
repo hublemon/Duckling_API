@@ -105,9 +105,15 @@ class PostController{
     async getUserPosts(req, res, next) {
         try {
             const postsRef = db.collection("posts");
-            const response = await postsRef.orderBy('time', 'desc').get();
+            const response = await postsRef.orderBy('time').get();
     
-            const resArr = response.docs.map(doc => doc.data());
+            const resArr = [];
+            response.docs.forEach(doc => {
+                const data = doc.data();
+                if (data.writerID === req.params.writerID) {
+                    resArr.push(data);
+                }
+            });
     
             res.status(200).json(resArr);
         } catch (err) {

@@ -58,8 +58,8 @@ class CommentController{
 
     async putComment(req,res,next){
         try{
-            const {text ,rootID, writerID,userID}=req.body;
-            if(!text||!rootID||!writerID||!userID){
+            const {text ,rootID, writerID}=req.body;
+            if(!text||!rootID||!writerID){
                 throw {status: 400, message: "댓글 정보가 부족합니다."};
             }
             const date = new Date();

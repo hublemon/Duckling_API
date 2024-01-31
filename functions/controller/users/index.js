@@ -9,7 +9,6 @@ const uuidRandom = require('uuid-random');
 const { storage } = require("firebase-admin");
 const { user } = require("firebase-functions/v1/auth");
 
-
 class UserController{
     router
     path="/users"
@@ -58,49 +57,34 @@ class UserController{
    
     async getUser(req, res, next) {
         try {
-            const userRef = db.collection("users").doc(req.params.id);
+            const userId = req.params.id;
+            const userRef = db.collection("users").doc(userId);
             const userSnapshot = await userRef.get();
-
-            let imageUrl;
-            let userData={};
     
-            if (!userSnapshot.exists) {
-                try {
-                    // Firebase Storage 참조 생성
-                    const imgRef = firestorage.ref(store, `users/${req.params.id}`);
-                    if(imgRef){
-                        imageUrl=await this.getBasicImageURL();
-                    }
-                } catch (error) {
-                    console.error("이미지 URL을 가져오는 중 에러 발생:", error);
-                    throw { status: 404, message: "존재하지 않는 유저입니다." };
-                }
-            } else{
+            let imageUrl = null;
+            let userData = {};
+    
+            if (userSnapshot.exists) {
                 userData = userSnapshot.data();
-                imageUrl= userData.profileImg;
-                // 프로필 이미지 URL 획득
-                // const profileID = userData.profileImg;
-                // try {
-                //     const urlRef = firestorage.ref(store, `users/${userData.uid}/${profileID}`);
-                //     imageUrl = await firestorage.getDownloadURL(urlRef);
-                // } catch (urlError) {
-                //     console.error("Error fetching image URL:", urlError);
-                // }
+                imageUrl = userData.profileImg;
+            } else {
+                // 유저 정보가 없는 경우 기본 이미지 URL 가져오기
+                imageUrl = await this.getBasicImageURL();
             }
-
     
             // 응답 데이터에 이미지 URL 추가
             const response = {
                 ...userData,
-                profileImg: imageUrl || null, // 이미지 URL이 없을 경우 null 설정
+                profileImg: imageUrl
             };
     
             res.status(200).json(response);
         } catch (err) {
+            console.error("에러 발생:", err);
             next(err);
         }
     }
-
+    
 
     async getUserAvatar(req, res, next) {  //스스로 구현해냈다!
         try {
@@ -123,46 +107,44 @@ class UserController{
 
     async putUser(req, res, next) {
         try {
-            const { uid, userName,access_token,access_token_secret } = req.body;
+            const { uid, userName, access_token, access_token_secret } = req.body;
     
-            if (!uid || !userName || !access_token || !access_token_secret ) {
-                throw { status: 400, message: "유저 정보가 부족합니다." }; 
+            // 필수 정보가 누락된 경우 에러 처리
+            if (!uid || !userName || !access_token || !access_token_secret) {
+                throw { status: 400, message: "유저 정보가 부족합니다." };
             }
-
+    
             const userDocRef = db.collection("users").doc(uid);
             const userDoc = await userDocRef.get();
-
-            let userAvatar = {};
-            let profileImg;
-            let profileID;
-
-            [profileID, profileImg] = await Promise.all([
-            uuidRandom(),
-            this.getBasicImageURL() // 프로필 이미지 URL을 가져오는 비동기 함수
-            ]);
-            if (userDoc.exists) {
-                userAvatar = userDoc.data().userAvatar;
-                profileImg=userDoc.data().profileImg;
+            let profileURL = null;
+            
+            // 프로필 이미지 URL 가져오기
+            if (!userDoc.exists) {
+                profileURL = await this.getBasicImageURL();
+            } else {
+                const userData = userDoc.data();
+                profileURL = userData.profileImg;
             }
 
-            const imgRef = firestorage.ref(store, `users/${uid}/${profileID}`);
-            
-            //여기까지//
+            const profileID=uuidRandom();
+            const ref=firestorage.ref(store, `users/${req.params.id}/${profileID}`)
+
             const userJson = {
-                uid:uid,
-                profileImg: profileImg,
+                uid: uid,
+                profileImg: profileURL,
                 userName: userName,
-                userAvatar: userAvatar,
+                userAvatar: userDoc.exists ? userDoc.data().userAvatar : {},
                 access_token: access_token,
                 access_token_secret: access_token_secret
             };
     
-            await userDocRef.set(userJson, { merge: true }); 
+            await userDocRef.set(userJson, { merge: true });
             res.status(201).json(userJson);
         } catch (err) {
             next(err);
         }
     }
+    
 
     async updateUser(req, res, next) {
         try {
@@ -175,30 +157,33 @@ class UserController{
             }
     
             const resData = userSnapshot.data();
-            const oldImageID = resData.profileImg;
-            const newImageID = profileImg ? uuidRandom() : oldImageID;
-            let imageURL;
+            let imageURL = resData.profileImg;
     
             if (profileImg) {
-                // 이미지 삭제
-                await this.deleteImages(`users/${req.params.id}}`);
-                // 새로운 이미지 업로드
-                await firestorage.uploadString(
+                const newImageID = uuidRandom();
+    
+                // 새 이미지 업로드와 이전 이미지 삭제를 병렬로 처리
+                const uploadPromise = firestorage.uploadString(
                     firestorage.ref(store, `users/${req.params.id}/${newImageID}`),
                     profileImg,
                     'data_url',
                     { contentType: 'image/jpg' }
                 );
-                const imgRef=await firestorage.ref(store, `users/${req.params.id}/${newImageID}`);
+                const deletePromise = this.deleteImages(`users/${req.params.id}`);
+    
+                // 업로드 및 삭제가 모두 완료되면 이미지 URL을 가져옴
+                await Promise.all([deletePromise,uploadPromise]);
+    
+                const imgRef = await firestorage.ref(store, `users/${req.params.id}/${newImageID}`);
                 imageURL = await firestorage.getDownloadURL(imgRef);
             }
-
+    
             await userRef.update({
-                profileImg: imageURL||resData.profileImg,
+                profileImg: imageURL || resData.profileImg,
                 userName: userName || resData.userName,
                 userAvatar: userAvatar || resData.userAvatar
             });
-            
+    
             const modifiedUserSnapshot = await userRef.get();
             const modifiedUser = modifiedUserSnapshot.data();
             res.status(204).json(modifiedUser);
@@ -236,19 +221,21 @@ class UserController{
             const listRef = firestorage.ref(store, `users/Basic`);
             const listResult = await firestorage.listAll(listRef);
             const items = listResult.items;
-            // console.log(items[0].fullPath);
     
-            if (items.length > 0) {
-                const randomIndex = Math.floor(Math.random() * (items.length-1));
-                return await firestorage.getDownloadURL(items[randomIndex]);
-                //https://firebasestorage... 이 꼴임
-            } else {
+            if (items.length === 0) {
                 throw { status: 404, message: "존재하지 않는 프로필 이미지입니다." };
             }
+    
+            const randomIndex = Math.floor(Math.random() * items.length);
+            const downloadURL = await firestorage.getDownloadURL(items[randomIndex]);
+    
+            return downloadURL;
         } catch (error) {
             console.error("이미지 URL을 가져오는 중 에러 발생:", error);
+            throw error;
         }
     }
+    
 
     async deleteImages(path) {
         try {
@@ -256,17 +243,20 @@ class UserController{
             const listResult = await firestorage.listAll(listRef);
             const items = listResult.items;
     
+            // 이미지가 없는 경우에만 넘어가도록 처리
             if (items.length > 0) {
-                await Promise.all(items.map(async (item) => {
-                    await firestorage.deleteObject(item);
-                }));
-            } else {
-                throw { status: 404, message: "존재하지 않는 프로필 이미지입니다." };
+                return; // 이미지가 없으면 그냥 넘어감
             }
+    
+            await Promise.all(items.map(async (item) => {
+                await firestorage.deleteObject(item);
+            }));
         } catch (error) {
             console.error("이미지 삭제 중 에러 발생:", error);
+            throw error; // 에러를 상위 함수로 전파
         }
     }
+    
     
 }
 
