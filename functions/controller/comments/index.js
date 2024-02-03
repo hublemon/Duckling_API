@@ -89,17 +89,30 @@ class CommentController{
     }
 
 
-    async deleteComment(req,res,next){
-        try{
-            const commentRef=db.collection("comments").doc(req.params.commentID);
-            const commentSnapShot= await commentRef.get();
-            if(!commentSnapShot.exists){
-                throw {status: 404, message: "존재하지 않는 댓글입니다."};
+    async deleteComment(req, res, next) {
+        try {
+            const commentID = req.params.commentID;
+            const commentRef = db.collection("comments").doc(commentID);
+            const commentSnapshot = await commentRef.get();
+    
+            if (!commentSnapshot.exists) {
+                throw { status: 404, message: "존재하지 않는 댓글입니다." };
             }
-            const comments=await db.collection("comments").doc(req.params.commentID).delete();
-            res.status(204).json({message:"답글이 삭제되었습니다."});
-        } catch(err){
-            next(err);
+    
+            const rootID = commentSnapshot.data().rootID;
+            const postRef = db.collection("posts").doc(rootID);
+            const postSnapshot = await postRef.get();
+    
+            let commentCount = await postSnapshot.data().commentCount > 0 ? postSnapshot.data().commentCount - 1 : 0;
+    
+            await Promise.all([
+                postRef.update({ commentCount: commentCount }),
+                commentRef.delete()
+            ]);
+    
+            res.status(204).json({ message: "답글이 삭제되었습니다." });
+        } catch (error) {
+            next(error);
         }
     }
 }
