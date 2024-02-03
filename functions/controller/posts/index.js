@@ -229,7 +229,14 @@ class PostController{
                 throw { status: 404, message: "존재하지 않는 게시글입니다." };
             }
     
-            // delete 메서드를 직접 호출하여 문서를 삭제합니다.
+            // rootID가 req.params.postID와 일치하는 comments를 삭제합니다.
+            const commentsRef = db.collection("comments");
+            const response = await commentsRef.where("rootID", "==", req.params.postID).get();
+    
+            response.forEach(async (doc) => {
+                await doc.ref.delete(); // 각각의 comment를 삭제합니다.
+            });
+    
             await postRef.delete();
     
             res.status(201).json({ message: "게시글이 삭제되었습니다." });  // 원래는 204를 보내야하지만..
@@ -237,6 +244,7 @@ class PostController{
             next(err);
         }
     }
+    
     
 }
 
