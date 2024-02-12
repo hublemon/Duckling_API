@@ -109,7 +109,16 @@ class AssetController{
     
             const kindRef = firestorage.ref(store, `${kind}`);
             const kindResult = await firestorage.listAll(kindRef);
-    
+
+            let uuidArray = [];
+
+            for (const item of kindResult.prefixes) {
+                let newUuid = uuidRandom();
+                uuidArray.push(newUuid);
+            }
+
+            uuidArray.sort();
+            let i=Number(0);
             for (const item of kindResult.prefixes) {
                 const listResult = await firestorage.listAll(item);
                 const items = listResult.items;
@@ -124,13 +133,14 @@ class AssetController{
                     [assetGltf, assetImg] = [assetImg, assetGltf];
                 }
     
-                const assetID = uuidRandom();
+                const assetID = uuidArray[i];
                 const assetKindJson = {
                     assetID,
                     assetPath,
                     assetImg,
                     assetGltf,
                 };
+                i=i+1;
     
                 const assetJson = {
                     assetRef: db.collection(kind).doc(assetID),

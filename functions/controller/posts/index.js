@@ -37,9 +37,7 @@ class PostController{
         this.router.get("/", (req, res) => {
             const sortBy = req.query.sortBy; // `${apiEndpoint}/?sortBy=${sortBy}`
     
-            if (sortBy === "time") {
-                this.getPostsByTime(req, res);
-            } else if (sortBy === "likes") {
+            if (sortBy === "likes") {
                 this.getPostsByLikes(req, res);
             } else {
                 // 기본적으로는 시간을 기준으로 가져오도록 설정
@@ -55,7 +53,8 @@ class PostController{
     }
 
     //비동기는 전설이다..
-    async getPosts(req, res, next, sortKey) {
+
+    async getPostsByTime(req, res, next) {
         try {
             const limit = parseInt(req.query.limit) || 10;
             const start = parseInt(req.query.start) || 0;
@@ -65,7 +64,7 @@ class PostController{
     
             const resArr = response.docs.map(doc => doc.data());
     
-            resArr.sort((a, b) => b[sortKey] - a[sortKey] || (sortKey === 'time' ? b.likes - a.likes : b.time - a.time));
+            resArr.sort((a, b) => b['time'] - a['time'] || (sortKey === 'time' ? b.likes - a.likes : b.time - a.time));
     
             const paginatedPosts = resArr.slice(start, start + limit);
     
@@ -75,13 +74,24 @@ class PostController{
         }
     }
     
-    
-    async getPostsByTime(req, res, next) {
-        await this.getPosts(req, res, next, 'time');
-    }
-    
     async getPostsByLikes(req, res, next) {
-        await this.getPosts(req, res, next, 'likes');
+        try {
+            const limit = parseInt(req.query.limit) || 10;
+            const start = parseInt(req.query.start) || 0;
+    
+            const postsRef = db.collection("posts");
+            const response = await postsRef.get();
+    
+            const resArr = response.docs.map(doc => doc.data());
+    
+            resArr.sort((a, b) => b['likes'].length - a['likes'].length);
+    
+            const paginatedPosts = resArr.slice(start, start + limit);
+    
+            res.status(201).json(paginatedPosts);
+        } catch (err) {
+            next(err);
+        }
     }
     
     
