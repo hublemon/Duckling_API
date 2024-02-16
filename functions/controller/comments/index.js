@@ -40,6 +40,7 @@ class CommentController{
             }
     
             const resArr = response.docs.map((doc) => doc.data());
+            resArr.sort((a, b) => a['time'] - b['time']);
     
             res.status(200).json(resArr);
         } catch (err) {

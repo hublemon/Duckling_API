@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const db=require("../app.js");
+
 const firestorage=require("../../config.js");
 const store= firestorage.getStorage();
 
@@ -34,7 +35,7 @@ class PostController{
     init(){
         // this.router.get("/",this.getPostsByTime.bind(this));
         // this.router.get("/",this.getPostsByLikes.bind(this));
-        this.router.get("/", (req, res) => {
+        this.router.get("/",(req, res) => {
             const sortBy = req.query.sortBy; // `${apiEndpoint}/?sortBy=${sortBy}`
     
             if (sortBy === "likes") {
