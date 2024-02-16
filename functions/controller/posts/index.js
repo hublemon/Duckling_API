@@ -156,30 +156,31 @@ class PostController{
             const postID = uuidRandom();
             const imgURLArr = [];
             let delay = 0;
-
-             // 이미지 개수만큼 랜덤한 UUID 생성
-            const imgIDs = Array.from({ length: postImg.length }, uuidRandom);        
-            // 생성한 UUID를 오름차순으로 정렬
-            imgIDs.sort();
-            let i=Number(0);
+   
+            const imgIDs = Array.from({ length: postImg.length }, () => uuidRandom()); // 랜덤 UUID 생성
+            imgIDs.sort(); // 생성한 UUID를 오름차순으로 정렬
+            let i = 0;
             const uploadPromises = Object.entries(postImg).map(async ([key, image]) => {
-    
                 const imgRef = firestorage.ref(store, `posts/${writerID}/${postID}/${imgIDs[i]}`);
                 i++;
-                
+
                 // setTimeout을 이용한 딜레이 추가
                 await new Promise(resolve => setTimeout(resolve, delay));
                 await firestorage.uploadString(imgRef, image, 'data_url', { content: 'image/jpg' });
-    
+
                 const url = await firestorage.getDownloadURL(imgRef);
-                imgURLArr.push(url);
-    
+                // imgURLArr.push(url);
+
                 // 1초씩 딜레이 증가
                 delay += 1000;
+
+                return url; // 이미지 URL 반환
             });
-    
-            await Promise.all(uploadPromises);
-    
+            const uploadedImgUrls = await Promise.all(uploadPromises); // 이미지 업로드가 완료된 후에 이미지 URL 배열 반환
+            // imgURLArr에 이미지 URL이 순서대로 담기도록 수정
+            imgURLArr.push(...uploadedImgUrls);
+            imgURLArr.sort();
+
             const date = new Date();
             const postJson = {
                 postID,
