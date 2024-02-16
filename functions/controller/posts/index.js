@@ -125,6 +125,7 @@ class PostController{
                     resArr.push(data);
                 }
             });
+            resArr.sort((a, b) => b['time'] - a['time']);
     
             res.status(200).json(resArr);
         } catch (err) {
@@ -152,15 +153,18 @@ class PostController{
             }
     
             const postID = uuidRandom();
-            const imgIDArr = [];
             const imgURLArr = [];
             let delay = 0;
-    
+
+             // 이미지 개수만큼 랜덤한 UUID 생성
+            const imgIDs = Array.from({ length: postImg.length }, uuidRandom);        
+            // 생성한 UUID를 오름차순으로 정렬
+            imgIDs.sort();
+            let i=Number(0);
             const uploadPromises = Object.entries(postImg).map(async ([key, image]) => {
-                const imageID = uuidRandom();
-                imgIDArr.push(imageID);
     
-                const imgRef = firestorage.ref(store, `posts/${writerID}/${postID}/${imageID}`);
+                const imgRef = firestorage.ref(store, `posts/${writerID}/${postID}/${imgIDs[i]}`);
+                i++;
                 
                 // setTimeout을 이용한 딜레이 추가
                 await new Promise(resolve => setTimeout(resolve, delay));
